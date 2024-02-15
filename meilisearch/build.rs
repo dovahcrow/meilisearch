@@ -1,3 +1,5 @@
+use std::{fs, io, path::Path};
+
 use vergen::{vergen, Config, SemverKind};
 
 fn main() {
@@ -28,6 +30,8 @@ mod mini_dashboard {
     use reqwest::blocking::get;
     use sha1::{Digest, Sha1};
     use static_files::resource_dir;
+
+    use crate::copy_dir_all;
 
     pub fn setup_mini_dashboard() -> anyhow::Result<()> {
         let cargo_manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -73,9 +77,10 @@ mod mini_dashboard {
         );
 
         create_dir_all(&dashboard_dir)?;
-        let cursor = Cursor::new(&dashboard_assets_bytes);
-        let mut zip = zip::read::ZipArchive::new(cursor)?;
-        zip.extract(&dashboard_dir)?;
+        // let cursor = Cursor::new(&dashboard_assets_bytes);
+        // let mut zip = zip::read::ZipArchive::new(cursor)?;
+        // zip.extract(&dashboard_dir)?;
+        copy_dir_all("../../mini-dashboard/build", &dashboard_dir)?;
         resource_dir(&dashboard_dir).build()?;
 
         // Write the sha1 for the dashboard back to file.
@@ -87,4 +92,18 @@ mod mini_dashboard {
 
         Ok(())
     }
+}
+
+fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }
